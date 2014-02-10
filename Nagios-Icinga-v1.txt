@@ -1,0 +1,317 @@
+Installation and configuration for Nagios/Icinga
+
+
+0) Prerequisites
+
+Apache
+PHP
+GCC compiler
+GD development libraries
+
+You can use yum to install these packages by running the following commands (as root):
+
+yum install httpd php
+yum install gcc glibc glibc-common
+yum install gd gd-devel
+yum install libjpeg libjpeg-devel libpng libpng-devel
+yum install net-snmp net-snmp-devel net-snmp-utils
+
+You also might need these packages if you don't have them yet:
+
+yum install make
+yum install openssl-devel
+
+
+1) Create Account Information
+
+Become the root user.
+
+su -l
+
+Create a new nagios/icinga user account and give it a password.
+
+/usr/sbin/useradd -m nagios
+passwd nagios
+
+OR
+
+/usr/sbin/useradd -m icinga
+passwd icinga
+
+Create a new nagcmd/icinga-cmd group for allowing external commands to be submitted through the web interface. Add both the nagios/icinga user and the apache user to the group.
+
+/usr/sbin/groupadd nagcmd
+/usr/sbin/usermod -a -G nagcmd nagios
+/usr/sbin/usermod -a -G nagcmd apache
+
+OR
+
+/usr/sbin/groupadd icinga-cmd
+/usr/sbin/usermod -a -G icinga-cmd icinga
+/usr/sbin/usermod -a -G icinga-cmd apache
+
+
+2)  Add RPMforge repo
+
+Find the appropriate rpmforge-release package for your distribution at http://repoforge.org/use/. For example, you can install it like:
+
+rpm -ivh http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.2-2.el6.rf.x86_64.rpm
+
+
+3) Install Nagios/Icinga
+
+yum install nagios
+
+OR
+
+yum install icinga icinga-gui
+
+4) Customize Configuration
+
+Edit the /usr/local/nagios/etc/objects/contacts.cfg or /usr/local/icinga/etc/objects/contacts.cfg config file with your favourite editor and change the email address associated with the icingaadmin contact definition to the address you'd like to use for receiving alerts.
+
+5) Configure the Web Interface
+
+Create a nagiosadmin/icingaadmin account for logging into the web interface. Remember the password you assign to this account - you'll need it later.
+
+htpasswd -c /usr/local/nagios/etc/htpasswd.users nagiosadmin
+
+OR
+
+htpasswd -c /usr/local/icinga/etc/htpasswd.users icingaadmin
+
+Restart Apache to make the new settings take effect.
+
+service httpd restart
+
+
+6) Install the Nagios Plugins
+
+For both Nagios and Icinga, you need to install Nagios plugins.
+
+yum install nagios-plugins-all
+
+
+7) Modify SELinux Settings
+
+See if SELinux is in Enforcing mode.
+
+getenforce
+
+Put SELinux into Permissive mode.
+
+setenforce 0
+
+To make this change permanent, you'll have to modify the settings in /etc/selinux/config and reboot.
+
+
+8) Start Nagios/Icinga
+
+Add Nagios/Icinga to the list of system services and have it automatically start when the system boots.
+
+chkconfig --add nagios
+chkconfig nagios on
+
+OR
+
+chkconfig --add icinga 
+chkconfig icinga on 
+
+Verify the sample Nagios/Icinga configuration files.
+
+/usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+
+OR
+
+/usr/local/icinga/bin/icinga -v /usr/local/icinga/etc/icinga.cfg
+
+If there are no errors, start Nagios.
+
+service nagios start
+
+OR
+
+service icinga start
+
+
+9) Login to the Web Interface
+
+You should now be able to access the web interface at the URL below. You'll be prompted for the username (nagiosadmin/icingaadmin) and password you specified earlier.
+
+http://localhost/nagios/ OR http://localhost/icinga/
+
+Click on the "Service Detail" navbar link to see details of what's being monitored on your local machine. It will take a few minutes to check all the services associated with your machine, as the checks are spread out over time.
+
+
+Monitor Remote Linux Host using Nagios/Icinga
+
+1. Install and configure Nagios Plugins and NRPE on the remote host
+
+1) Create nagios account
+
+useradd nagios
+passwd nagios
+
+2) Install nagios-plugin and nrpe
+
+yum install nrpe
+yum install nagios-plugins-all
+
+3) Edit nrpe.cfg to allow your nagios/icinga server and customise configuration
+
+Edit nrpe configuration file:
+
+vi /etc/nagios/nrpe.cfg
+
+Find line allowed_hosts . it is a comma separated list. add your nagios server ip to the list
+
+allowed_hosts=127.0.0.1,192.168.1.100
+
+For customise configuration, please see nrpe.cfg.
+
+4) IPTables
+
+If you are running iptables or a firewall between the server and host, make sure that the host is allowing port 5666 from the server's IP address.
+
+5) Start nrpe service on system start up
+
+chkconfig nrpe on
+
+6)  Start nrpe service
+
+service nrpe start
+
+
+2. Configure on the monitoring server to monitor remote host
+
+1)  Install nrpe
+
+yum install nrpe
+
+2) Install check_nrpe on the monitoring server
+
+Check if you have 'check_nrpe' in /usr/local/nagios/libexec. If not, copy it from /usr/lib64/nagios/plugins/.
+
+cp /usr/lib64/nagios/plugins/check_nrpe /usr/local/nagios/libexec
+
+OR
+
+cp /usr/lib64/nagios/plugins/check_nrpe /usr/local/icinga/libexec
+
+Verify whether monitoring server can talk to the remotehost. For example:
+
+/usr/local/nagios/libexec/check_nrpe -H 192.168.1.3
+NRPE v2.13
+
+3) Create host and service definition for remotehost
+
+Create a new configuration file /usr/local/nagios/etc/objects/remotehost.cfg to define the host and service definition for this particular remotehost.
+
+For more details, please see scilinux2.cfg.
+
+4) Restart the nagios/Icinga service
+
+service nagios restart OR service Icinga restart 
+
+
+Examples of customising configuration
+
+1. Check disk space on local host
+
+# Define a service to check the disk space of the root partition
+# on the local machine.
+# Warning if < 25% free, critical if < 10% free space on partition.
+define service{
+        use                   local-service         ; Name of service template to use
+        host_name             localhost
+        service_description   Root Partition
+        check_command         check_local_disk!25%!10%!/
+        }
+
+2. Check Apache on local host
+
+# Define a service to check HTTP on the local machine.
+define service{
+        use                   local-service         ; Name of service template to use
+        host_name             localhost
+        service_description   HTTP
+        check_command         check_http
+        }
+
+3. Check how many Apache processes are running on local host
+
+1) Add check_daemons in /usr/local/nagios/etc/objects/commands.cfg
+
+#check daemons
+define command{
+        command_name    check_daemons
+        command_line    $USER1$/check_procs -c $ARG1$:$ARG2$ -C $ARG3$
+        }
+
+2) Add service in /usr/local/nagios/etc/objects/localhost.cfg
+
+# Define a service to check the number of currently running Apache procs
+# on the local machine. Critical if the number is not in the range from 1 to 20
+
+define service{
+        use                    local-service         ; Name of service template to use
+        host_name              localhost
+        service_description    HTTP daemons
+        check_command          check_daemons!1!20!httpd
+        }
+
+4. Check PostgreSQL on remote host
+
+1) Add check_nrpe in /usr/local/nagios/etc/objects/commands.cfg on monitoring server
+
+To check remote host, check_nrpe is essential.
+
+Note: Make sure check_nrpe is in /usr/local/nagios/libexec($USER1$)
+
+#check nrpe
+define command{
+        command_name    check_nrpe
+        command_line    $USER1$/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
+        }
+
+2) Add check_pgsql in /etc/nagios/nrpe.cfg on remote host
+
+command[check_pgsql]=/usr/lib64/nagios/plugins/check_pgsql
+
+3) Check check_pgsql on monitoring server
+
+/usr/local/nagios/libexec/check_nrpe -H scilinux2 -c check_pgsql
+
+If you see the error like:
+
+CRITICAL - no connection to 'template1' (FATAL:  Ident authentication failed for user "nrpe")
+
+Add user 'nrpe' on remote host.
+
+su - postgres
+createuser nrpe
+
+4)  Add service in /usr/local/nagios/etc/objects/scilinux2.cfg
+
+define service{
+        use                    generic-service
+        host_name              scilinux2
+        service_description    check-pgsql
+        check_command          check_nrpe!check_pgsql
+        }
+
+Note: All plugins in //usr/local/nagios/libexec, run them with -h for help. Fo example:
+
+/usr/local/nagios/libexec/check_disk -h
+
+
+References
+
+http://nagios.sourceforge.net/docs/3_0/quickstart-fedora.html
+http://docs.icinga.org/latest/en/quickstart-icinga.html
+http://blog.roozbehk.com/post/25059446631/nrpe-monitoring-linux-remote-hosts-nagios
+http://www.thegeekstuff.com/2008/06/how-to-monitor-remote-linux-host-using-nagios-30/
+http://wiki.tyk.nu/index.php?title=Check_pgsql_-_NRPE_PostgreSQL_check
+
+
+
